@@ -676,6 +676,7 @@ function newBoard() {
 }
 
 function initGame() {
+  if (typeof launchConfetti === 'function') document.dispatchEvent(new Event('chess:newgame'));
   board = newBoard();
   turn = 'w'; selR = selC = -1; over = false; hist = []; legal = []; aiOn = false;
   captured = { red: [], black: [] };
@@ -960,7 +961,106 @@ function endGame(w) {
   winnerEl.textContent = w === 'w' ? '🔴 紅方勝利！' : '⚫ 黑方勝利！';
   winnerEl.style.display = 'block';
   drawBoard();
+  launchConfetti(w);
 }
+
+/* ── Confetti ── */
+(function(){
+  const CONFETTI_COUNT = 160;
+  const confettiEl = document.createElement('canvas');
+  confettiEl.id = 'confettiCanvas';
+  confettiEl.style.cssText =
+    'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:999;';
+  document.body.appendChild(confettiEl);
+
+  let particles = [], rafConfetti = null;
+  const cx = confettiEl.getContext('2d');
+
+  function resizeConfetti() {
+    confettiEl.width  = window.innerWidth;
+    confettiEl.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeConfetti);
+  resizeConfetti();
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+
+  function makeParticle(isRed) {
+    const palette = isRed
+      ? ['#ff4444','#ff8800','#ffcc00','#ff2288','#ff6666','#ffffff']
+      : ['#222222','#555555','#888888','#aaaaaa','#ffd700','#ffffff'];
+    return {
+      x:    rand(0, confettiEl.width),
+      y:    rand(-confettiEl.height * 0.3, -10),
+      vx:   rand(-2.5, 2.5),
+      vy:   rand(2, 6),
+      w:    rand(7, 14),
+      h:    rand(4, 8),
+      rot:  rand(0, Math.PI * 2),
+      drot: rand(-0.12, 0.12),
+      color: palette[Math.floor(Math.random() * palette.length)],
+      shape: Math.random() < 0.5 ? 'rect' : 'circle',
+      alpha: 1,
+      life:  rand(180, 320),
+      age:   0,
+    };
+  }
+
+  function stopConfetti() {
+    if (rafConfetti) { cancelAnimationFrame(rafConfetti); rafConfetti = null; }
+    cx.clearRect(0, 0, confettiEl.width, confettiEl.height);
+    particles = [];
+  }
+
+  function tickConfetti() {
+    cx.clearRect(0, 0, confettiEl.width, confettiEl.height);
+    particles = particles.filter(p => p.age < p.life);
+    for (const p of particles) {
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.vy += 0.08;          // gravity
+      p.vx *= 0.99;          // air drag
+      p.rot += p.drot;
+      p.age++;
+      p.alpha = p.age < p.life * 0.8 ? 1 : 1 - (p.age - p.life * 0.8) / (p.life * 0.2);
+      cx.save();
+      cx.globalAlpha = Math.max(0, p.alpha);
+      cx.translate(p.x, p.y);
+      cx.rotate(p.rot);
+      cx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        cx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      } else {
+        cx.beginPath();
+        cx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+        cx.fill();
+      }
+      cx.restore();
+    }
+    if (particles.length > 0) {
+      rafConfetti = requestAnimationFrame(tickConfetti);
+    } else {
+      cx.clearRect(0, 0, confettiEl.width, confettiEl.height);
+      rafConfetti = null;
+    }
+  }
+
+  window.launchConfetti = function(winner) {
+    stopConfetti();
+    const isRed = (winner === 'w');
+    for (let i = 0; i < CONFETTI_COUNT; i++) {
+      // stagger spawn time by offsetting age negatively
+      const p = makeParticle(isRed);
+      p.age = -Math.floor(Math.random() * 80); // stagger
+      particles.push(p);
+    }
+    rafConfetti = requestAnimationFrame(tickConfetti);
+  };
+
+  // Stop confetti when new game starts
+  const origInit = window._origInit;
+  document.addEventListener('chess:newgame', stopConfetti);
+})();
 function updTurn() {
   if (gMode === 'ai' && turn === aiCol) {
     turnDisp.textContent = '🤖 電腦思考中…'; turnDisp.style.color = ''; return;
