@@ -380,7 +380,9 @@ canvas.thinking {
     align-items: stretch;
   }
 
+  /* 交換左右順序：棋盤在左，控制面板在右 */
   .side-panel {
+    order: 2;
     flex: 0 0 260px;
     width: 260px;
     min-width: 220px;
@@ -388,6 +390,11 @@ canvas.thinking {
     gap: 14px;
     overflow-y: auto;
     overflow-x: hidden;
+  }
+
+  .board-card {
+    order: 1;
+    flex: 1 1 0;
   }
 
   .toolbar {
@@ -738,7 +745,7 @@ canvas.thinking {
 <!-- ── Game UI ── -->
 <div class="game-wrap">
   <div class="game-container">
-    <!-- side-panel -->
+    <!-- side-panel (在橫向模式下會透過 order 移到右側) -->
     <div class="side-panel">
       <div class="toolbar">
         <span class="turn-indicator" id="turnDisplay">🔴 紅方走棋</span>
