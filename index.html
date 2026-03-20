@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>中國象棋 · 雙人/AI · 囚區草綠</title>
+<title>中國象棋 · 雙人/AI</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700&display=swap" rel="stylesheet">
 <style>
 /* ── Variables ── */
@@ -27,6 +27,8 @@
   --card-bg:rgba(255,255,255,0.97);
   --grave-bg:rgba(144,238,144,0.35);  /* 草綠色半透明 */
   --grave-text:#2c5e2c;                /* 深綠色文字 */
+  --red-turn:#c03b2b;                   /* 紅方走棋顏色 */
+  --black-turn:#1c1c1e;                 /* 黑方走棋顏色 (亮色主題) */
 }
 body.dark{
   --bg-s:#131315;--bg-e:#222226;
@@ -47,6 +49,7 @@ body.dark{
   --card-bg:rgba(42,42,48,0.98);
   --grave-bg:rgba(70,120,70,0.5);      /* 暗色調草綠 */
   --grave-text:#c0e0c0;
+  --black-turn:#e0e0e0;                 /* 黑方走棋顏色 (暗色主題) */
 }
 
 /* ── Reset ── */
@@ -118,7 +121,7 @@ padding:5px 10px;
 background:var(--turn-bg);
 border-radius:999px;
 border:var(--turn-border);
-color:var(--text-pri);
+color:var(--text-pri); /* 預設，會在js中動態覆寫 */
 white-space:nowrap;
 overflow:hidden;
 text-overflow:ellipsis;
@@ -312,14 +315,14 @@ overflow-y:auto;           /* 若內容過高可滾動 */
 flex-direction:column;
 align-items:stretch;
 border-radius:20px;
-padding:16px 14px;          /* 增加內距 */
-gap:12px;
+padding:18px 16px;          /* 增加內距 */
+gap:16px;                   /* 增加間距防止重疊 */
 overflow:visible;           /* 避免裁剪陰影 */
 }
 
 .turn-indicator{
 font-size:1rem;
-padding:8px 12px;
+padding:10px 12px;
 text-align:center;
 white-space:normal;        /* 允許換行 */
 word-break:keep-all;
@@ -327,7 +330,7 @@ word-break:keep-all;
 
 .action-buttons{
 flex-direction:column;
-gap:8px;
+gap:12px;                   /* 增加按鈕間距 */
 align-items:stretch;
 }
 
@@ -356,14 +359,16 @@ width:100%;
 box-sizing:border-box;
 }
 
-/* 俘虜區在側欄內適當排列 */
+/* 俘虜區在側欄內適當排列，增加間距 */
 .grave-yard{
-padding:12px 10px;
+padding:14px 12px;
 font-size:1rem;
 justify-content:center;
+gap:10px;                    /* 增加左右兩區間距 */
 }
 .grave-side{
 justify-content:center;
+flex-basis:auto;             /* 根據內容調整寬度 */
 }
 
 .board-card{
@@ -379,7 +384,7 @@ padding:12px 16px;
 
 .footer-note{
 margin-top:auto;
-padding-top:8px;
+padding-top:10px;
 }
 }
 
@@ -390,7 +395,8 @@ flex-basis:220px;
 min-width:200px;
 }
 .toolbar{
-padding:12px 10px;
+padding:14px 12px;
+gap:12px;
 }
 }
 
@@ -809,6 +815,7 @@ function scheduleAI(){
   if(over||aiOn)return;
   aiOn=true;canvas.classList.add('thinking');thinkBar.classList.add('active');
   turnDisp.textContent='🤖 電腦思考中…';
+  turnDisp.style.color = ''; // 恢復預設顏色
   setTimeout(()=>{
     const m=bestMove();
     aiOn=false;canvas.classList.remove('thinking');thinkBar.classList.remove('active');
@@ -913,8 +920,15 @@ function endGame(w){
   drawBoard();
 }
 function updTurn(){
-  if(gMode==='ai'&&turn===aiCol)return;
-  turnDisp.textContent=turn==='w'?'🔴 紅方走棋':'⚫ 黑方走棋';
+  if(gMode==='ai'&&turn===aiCol){
+    turnDisp.textContent='🤖 電腦思考中…';
+    turnDisp.style.color = '';
+    return;
+  }
+  const isRed = (turn === 'w');
+  turnDisp.textContent = isRed ? '🔴 紅方走棋' : '⚫ 黑方走棋';
+  // 設定文字顏色
+  turnDisp.style.color = isRed ? 'var(--red-turn)' : 'var(--black-turn)';
 }
 function getPos(e){
   const r=canvas.getBoundingClientRect();
@@ -969,6 +983,8 @@ restartB.addEventListener('click',showOverlay);
 themeB.addEventListener('click',()=>{
   document.body.classList.toggle('dark');
   themeB.textContent=document.body.classList.contains('dark')?'☀️':'🌙';
+  // 重新套用 turn 顏色 (因為暗色主題變數改變)
+  updTurn();
   drawBoard();
 });
 modeBadge.addEventListener('click',showOverlay);
