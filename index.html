@@ -156,7 +156,7 @@ body {
 
 .action-buttons {
   display: flex;
-  gap: 8px;
+  gap: 8px;  /* 增加間距，從5px改為8px */
   align-items: center;
   flex-shrink: 0;
 }
@@ -193,7 +193,7 @@ body {
   background: var(--accent);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  padding: 8px 14px;
+  padding: 8px 14px;  /* 左右padding略增 */
   border-radius: 40px;
   font-size: clamp(0.7rem, 2vw, 0.85rem);
   font-weight: 600;
@@ -204,7 +204,7 @@ body {
 }
 
 .mode-badge {
-  padding: 6px 12px;
+  padding: 6px 12px;  /* 左右padding增加，使文字更舒適 */
   border-radius: 40px;
   font-size: clamp(0.7rem, 2vw, 0.85rem);
   font-weight: 600;
@@ -821,87 +821,6 @@ let over=false, hist=[], legal=[];
 let gMode='pvp', aiCol='b', aiDep=2, aiOn=false, aiTimer=null;
 let captured={red:[], black:[]};
 
-// 灑花粒子系統
-let particles = [];
-let confettiActive = false;
-let confettiRaf = null;
-let confettiTimeout = null;
-
-function createConfetti() {
-  const count = 80;
-  const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
-  for (let i = 0; i < count; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height * 0.2 - canvas.height * 0.1, // 從頂部出現
-      vx: (Math.random() - 0.5) * 2,
-      vy: Math.random() * 3 + 2,
-      size: Math.random() * 8 + 4,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      rotation: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 0.1,
-    });
-  }
-}
-
-function updateConfetti() {
-  if (!confettiActive) return;
-  
-  // 更新粒子
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.1; // 重力
-    p.rotation += p.spin;
-    
-    // 超出畫布或太下面則移除
-    if (p.y > canvas.height + 50 || p.x < -50 || p.x > canvas.width + 50) {
-      particles.splice(i, 1);
-    }
-  }
-  
-  // 如果粒子全部消失，停止動畫
-  if (particles.length === 0) {
-    stopConfetti();
-    return;
-  }
-  
-  drawBoard(); // 重繪棋盤（包含粒子）
-  
-  // 繼續動畫
-  confettiRaf = requestAnimationFrame(updateConfetti);
-}
-
-function startConfetti() {
-  if (confettiActive) stopConfetti();
-  
-  confettiActive = true;
-  createConfetti();
-  
-  // 設置定時自動停止（3秒後）
-  confettiTimeout = setTimeout(() => {
-    stopConfetti();
-  }, 3000);
-  
-  // 啟動動畫循環
-  confettiRaf = requestAnimationFrame(updateConfetti);
-}
-
-function stopConfetti() {
-  confettiActive = false;
-  particles = [];
-  if (confettiRaf) {
-    cancelAnimationFrame(confettiRaf);
-    confettiRaf = null;
-  }
-  if (confettiTimeout) {
-    clearTimeout(confettiTimeout);
-    confettiTimeout = null;
-  }
-  drawBoard(); // 清除粒子重繪
-}
-
 const CH={R:'車',H:'馬',E:'相',A:'士',K:'帥',C:'砲',P:'兵',
           r:'車',h:'馬',e:'象',a:'士',k:'將',c:'砲',p:'卒'};
 const pcol=p=>(!p||p===' ')?null:(p>='A'&&p<='Z'?'w':'b');
@@ -949,7 +868,6 @@ function cloneCaptured(){
 }
 
 function initGame(){
-  stopConfetti(); // 新遊戲停止灑花
   cancelAITimer();
   board = newBoard();
   turn = 'w';
@@ -1238,7 +1156,6 @@ function endGame(w){
   over=true;anim.phase=null;cancelAnim();cancelAITimer();
   winnerEl.textContent=w==='w'?'🔴 紅方勝利！':'⚫ 黑方勝利！';
   winnerEl.style.display='block';
-  startConfetti(); // 勝利時灑花
   drawBoard();
 }
 function updTurn(){
@@ -1328,7 +1245,6 @@ themeB.addEventListener('click',()=>{
 modeBadge.addEventListener('click',showOverlay);
 let selMode=null,selDiff=2;
 function showOverlay(){
-  stopConfetti(); // 開啟選單時停止灑花
   cancelAITimer();
   aiOn=false;
   cancelAnim(); anim.phase=null; anim.scale=1;
@@ -1473,18 +1389,6 @@ function drawBoard(){
   if((anim.phase==='travel'||anim.phase==='land') && anim.piece){
     drawPiece(anim.cx, anim.cy, anim.piece, anim.pc, anim.scale, false);
   }
-
-  // 繪製灑花粒子（在最上層）
-  if (confettiActive) {
-    particles.forEach(p => {
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.rotation);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.6); // 花瓣形狀
-      ctx.restore();
-    });
-  }
 }
 
 function drawPiece(x,y,piece,pc,scale,gray){
@@ -1495,6 +1399,7 @@ function drawPiece(x,y,piece,pc,scale,gray){
   if(gray){
     fill='#b0b0b0'; rim='#707070'; inner='#909090'; tcolor='#404040';
   } else {
+    // 使用主題微調棋子顏色 (保持紅黑傳統，但更柔和)
     fill = isRed ? '#f5e3c6' : '#e6dbc4';
     rim  = isRed ? '#b06828' : '#6f5e40';
     inner= isRed ? '#c08030' : '#8f7a50';
