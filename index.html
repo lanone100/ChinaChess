@@ -6,7 +6,6 @@
 <title>中國象棋 · 雙人/AI</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
 <style>
-/* ── 全新設計風格 ── 柔和現代色調、毛玻璃、舒適陰影 ── */
 :root {
   --bg-start: #f0f3f8;
   --bg-end: #e2e8f0;
@@ -97,7 +96,7 @@ body {
     env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
-/* ── 手機版直立 (預設) ── */
+/* 手機版直立 (預設) */
 .game-container {
   width: 100%;
   height: 100%;
@@ -118,7 +117,6 @@ body {
   min-width: 0;
 }
 
-/* 工具列 (水平) */
 .toolbar {
   display: flex;
   align-items: center;
@@ -159,7 +157,7 @@ body {
   flex-shrink: 0;
 }
 
-/* 通用按鈕樣式 */
+/* 所有按鈕統一為圓形圖示 */
 .icon-btn,
 .undo-btn,
 .mode-badge,
@@ -173,10 +171,6 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   font-weight: 500;
-}
-
-.icon-btn,
-.undo-btn {
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -185,33 +179,17 @@ body {
   justify-content: center;
   font-size: 1.2rem;
   border: var(--panel-border);
+  padding: 0;
 }
 
+/* 新局按鈕特殊背景 */
 .restart-btn {
   background: var(--accent);
   color: white;
   border: 1px solid rgba(255, 255, 255, 0.25);
-  padding: 8px 14px;
-  border-radius: 40px;
-  font-size: clamp(0.7rem, 2vw, 0.85rem);
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
 }
 
-.mode-badge {
-  padding: 6px 12px;
-  border-radius: 40px;
-  font-size: clamp(0.7rem, 2vw, 0.85rem);
-  font-weight: 600;
-  border: var(--panel-border);
-  white-space: nowrap;
-  background: var(--btn-bg);
-  color: var(--text-primary);
-}
-
+/* 模式徽章保留顏色區分 */
 .mode-badge.pvp {
   background: rgba(90, 150, 120, 0.2);
   color: var(--text-primary);
@@ -370,7 +348,7 @@ canvas.thinking {
   padding: 4px 0;
 }
 
-/* ── PC 橫向 (≥768px) ── */
+/* PC 橫向 (≥768px) */
 @media (min-width: 768px) {
   .game-container {
     flex-direction: row;
@@ -380,7 +358,7 @@ canvas.thinking {
     align-items: stretch;
   }
 
-  /* 交換左右順序：棋盤在左，控制面板在右 */
+  /* 棋盤在左，控制面板在右 */
   .side-panel {
     order: 2;
     flex: 0 0 260px;
@@ -417,46 +395,18 @@ canvas.thinking {
   .action-buttons {
     flex-direction: column;
     gap: 10px;
-    align-items: stretch;
+    align-items: center;  /* 圓形按鈕置中 */
     width: 100%;
   }
 
+  /* 桌面版按鈕稍大 */
   .icon-btn,
-  .undo-btn {
-    width: 100%;
-    height: 48px;
-    border-radius: 16px;
-    font-size: 0.95rem;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .icon-btn::after {
-    content: attr(data-label);
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-
-  .undo-btn::after {
-    content: "悔棋";
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-
+  .undo-btn,
+  .mode-badge,
   .restart-btn {
-    width: 100%;
+    width: 48px;
     height: 48px;
-    justify-content: center;
-    font-size: 0.95rem;
-    border-radius: 16px;
-  }
-
-  .mode-badge {
-    width: 100%;
-    text-align: center;
-    padding: 12px 10px;
-    font-size: 0.9rem;
-    border-radius: 16px;
+    font-size: 1.4rem;
   }
 
   .grave-yard {
@@ -508,12 +458,15 @@ canvas.thinking {
   }
   .icon-btn,
   .undo-btn,
+  .mode-badge,
   .restart-btn {
+    width: 44px;
     height: 44px;
+    font-size: 1.3rem;
   }
 }
 
-/* ── 模式選擇覆蓋層 ── */
+/* 模式選擇覆蓋層 */
 .mode-overlay {
   position: fixed;
   inset: 0;
@@ -710,7 +663,7 @@ canvas.thinking {
 </head>
 <body>
 
-<!-- ── Mode overlay ── -->
+<!-- 模式覆蓋層 -->
 <div class="mode-overlay" id="modeOverlay">
   <div class="mode-panel">
     <div class="mode-title">中國象棋<span>選擇對戰模式</span></div>
@@ -742,21 +695,21 @@ canvas.thinking {
   </div>
 </div>
 
-<!-- ── Game UI ── -->
+<!-- 遊戲介面 -->
 <div class="game-wrap">
   <div class="game-container">
-    <!-- side-panel (在橫向模式下會透過 order 移到右側) -->
+    <!-- 右側控制面板（橫向時靠右） -->
     <div class="side-panel">
       <div class="toolbar">
         <span class="turn-indicator" id="turnDisplay">🔴 紅方走棋</span>
         <div class="action-buttons">
-          <button class="mode-badge pvp" id="modeBadge">👥 雙人</button>
+          <button class="mode-badge pvp" id="modeBadge" title="雙人模式">👥</button>
           <button class="undo-btn" id="undoBtn" aria-label="悔棋" disabled title="悔棋">↩</button>
-          <button class="restart-btn" id="restartBtn">↻ 新局</button>
-          <button class="icon-btn" id="themeBtn" aria-label="切換主題" data-label=" 主題" title="切換深淺">🌙</button>
+          <button class="restart-btn" id="restartBtn" title="新局">↻</button>
+          <button class="icon-btn" id="themeBtn" aria-label="切換主題" title="切換深淺">🌙</button>
         </div>
       </div>
-      <!-- GRAVE YARD -->
+      <!-- 被吃棋子區 -->
       <div class="grave-yard" id="graveYard">
         <div class="grave-side" id="graveRed">🔴 <span class="grave-label">紅:</span> <span id="redCaptured"></span></div>
         <div class="grave-side" id="graveBlack">⚫ <span class="grave-label">黑:</span> <span id="blackCaptured"></span></div>
@@ -765,7 +718,7 @@ canvas.thinking {
       <div id="winnerMsg" class="winner-card"></div>
       <div class="footer-note" id="footerNote">✦ 雙人對弈 ✦</div>
     </div>
-    <!-- board -->
+    <!-- 棋盤卡片（橫向時靠左） -->
     <div class="board-card" id="boardCard">
       <canvas id="chessCanvas"></canvas>
     </div>
@@ -1271,11 +1224,15 @@ startBtn.addEventListener('click',()=>{
   if(!selMode)return;
   gMode=selMode;aiDep=selDiff;
   if(gMode==='pvp'){
-    modeBadge.textContent='👥 雙人';modeBadge.className='mode-badge pvp';
+    modeBadge.textContent='👥';
+    modeBadge.className='mode-badge pvp';
+    modeBadge.title='雙人模式';
     footerNote.textContent='✦ 雙人對弈 ✦';
   } else {
     const dn=['','入門','普通','困難'][aiDep]||'普通';
-    modeBadge.textContent=`🤖 AI·${dn}`;modeBadge.className='mode-badge ai';
+    modeBadge.textContent='🤖';
+    modeBadge.className='mode-badge ai';
+    modeBadge.title=`AI·${dn}`;
     footerNote.textContent=`✦ 人機對戰 · ${dn} ✦`;
   }
   modeOv.classList.add('hidden');
