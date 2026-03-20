@@ -3,69 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>專業象棋 PIXI 版</title>
+    <title>極致象棋 - PixiJS 專業版</title>
     <style>
-        :root { --bg-color: #1a1a1b; --panel-bg: #2d2d2e; --accent: #d4a373; }
-        body {
-            margin: 0; background-color: var(--bg-color);
-            display: flex; justify-content: center; align-items: center;
-            height: 100vh; font-family: "Microsoft JhengHei", sans-serif; color: #fff;
+        :root { --bg: #121212; --panel: #1e1e1e; --accent: #8d6e63; }
+        body { margin: 0; background: var(--bg); display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; color: #eee; }
+        
+        /* 響應式框架 */
+        #main-wrapper {
+            display: flex; flex-direction: row; gap: 20px; padding: 25px;
+            background: var(--panel); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
         }
-        /* PC 橫式框架 */
-        #game-container {
-            display: flex; flex-direction: row; 
-            gap: 20px; padding: 20px; background: var(--panel-bg);
-            border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        }
-        /* 手機直式自適應 */
         @media (max-width: 750px) {
-            #game-container { flex-direction: column; align-items: center; padding: 10px; }
-            #side-panel { width: 450px !important; border-left: none !important; border-top: 2px solid #444; padding: 15px 0 0 0 !important; }
+            #main-wrapper { flex-direction: column; padding: 10px; }
+            #side-panel { width: 450px !important; border-left: none !important; border-top: 1px solid #444; padding: 15px 0 0 0 !important; }
         }
-        #canvas-wrapper { border: 4px solid #8b5e34; border-radius: 4px; line-height: 0; }
-        #side-panel {
-            width: 200px; display: flex; flex-direction: column; 
-            padding-left: 20px; border-left: 2px solid #444;
-        }
-        .status-box {
-            padding: 15px; border-radius: 8px; text-align: center;
-            font-size: 20px; font-weight: bold; margin-bottom: 15px;
-            transition: all 0.3s;
-        }
-        .red-turn { background: #780000; color: #ffcccc; border: 2px solid #ff4444; }
-        .black-turn { background: #222; color: #eee; border: 2px solid #888; }
-        button {
-            padding: 10px; cursor: pointer; background: var(--accent);
-            border: none; border-radius: 4px; font-weight: bold; color: #333;
-        }
-        button:hover { background: #faedcd; }
+
+        #canvas-holder { border: 4px solid #5d4037; border-radius: 4px; overflow: hidden; background: #f0d9b5; line-height: 0; }
+        #side-panel { width: 220px; display: flex; flex-direction: column; padding-left: 20px; border-left: 1px solid #444; }
+        
+        .status-box { padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 22px; margin-bottom: 20px; }
+        .red-turn { background: #b71c1c; color: white; border: 2px solid #ff5252; }
+        .black-turn { background: #212121; color: #ccc; border: 2px solid #757575; }
+        
+        .msg-log { color: #ffca28; font-size: 14px; min-height: 40px; margin-bottom: 10px; }
+        button { padding: 12px; cursor: pointer; background: #5d4037; color: white; border: none; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #795548; }
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <div id="canvas-wrapper"></div>
+<div id="main-wrapper">
+    <div id="canvas-holder"></div>
     <div id="side-panel">
-        <h2 style="margin: 0 0 15px 0;">東方象棋</h2>
+        <h2 style="margin-top:0">象棋對弈</h2>
         <div id="status" class="status-box red-turn">紅方走子</div>
-        <div id="msg" style="color: #ffb703; font-size: 14px; margin-bottom: 10px; min-height: 1.2em;"></div>
+        <div id="msg" class="msg-log"></div>
         <button onclick="location.reload()">重新開始</button>
-        <p style="font-size: 12px; margin-top: auto; opacity: 0.6;">提示：點選棋子後點擊目標位置移動。</p>
+        <div style="margin-top:auto; font-size: 12px; opacity: 0.5;">
+            💡 提示：<br>馬有蹩馬腿，炮需炮架吃子，帥不可直接見面。
+        </div>
     </div>
 </div>
 
 <script src="https://pixijs.download/v7.3.2/pixi.min.js"></script>
 <script>
 (async () => {
-    // 1. 初始化 PixiJS
+    // 1. 初始化 Pixi 應用程式
     const app = new PIXI.Application();
-    await app.init({ width: 450, height: 500, backgroundColor: 0xf3e5ab, antialias: true });
-    document.getElementById('canvas-wrapper').appendChild(app.canvas);
+    await app.init({ width: 450, height: 500, backgroundColor: 0xf0d9b5, antialias: true });
+    document.getElementById('canvas-holder').appendChild(app.canvas);
 
     const gridSize = 50, padding = 25;
     let turn = 1, selected = null;
 
-    // 棋盤狀態 (1:帥, 2:車, 3:馬, 4:相, 5:仕, 6:兵, 7:炮)
+    // 棋盤初始狀態 (1帥 2車 3馬 4相 5仕 6兵 7炮)
     let board = [
         [-2,-3,-4,-5,-1,-5,-4,-3,-2],
         [ 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -84,17 +75,15 @@
     const piecesLayer = new PIXI.Container();
     const uiLayer = new PIXI.Graphics();
 
-    // 2. 繪製棋盤背景
-    const drawBoard = () => {
+    // 2. 繪製棋盤背景線
+    const drawGrid = () => {
         const g = new PIXI.Graphics();
-        g.lineStyle(2, 0x5d4037, 0.8);
-        // 橫豎線
-        for(let i=0; i<10; i++) { g.moveTo(padding, padding + i*gridSize); g.lineTo(padding + 8*gridSize, padding + i*gridSize); }
+        g.lineStyle(2, 0x5d4037, 0.7);
+        for(let i=0; i<10; i++) { g.moveTo(padding, padding+i*gridSize); g.lineTo(padding+8*gridSize, padding+i*gridSize); }
         for(let i=0; i<9; i++) {
-            g.moveTo(padding + i*gridSize, padding); g.lineTo(padding + i*gridSize, padding + 4*gridSize);
-            g.moveTo(padding + i*gridSize, padding + 5*gridSize); g.lineTo(padding + i*gridSize, padding + 9*gridSize);
+            g.moveTo(padding+i*gridSize, padding); g.lineTo(padding+i*gridSize, padding+4*gridSize);
+            g.moveTo(padding+i*gridSize, padding+5*gridSize); g.lineTo(padding+i*gridSize, padding+9*gridSize);
         }
-        // 九宮格斜線
         const palace = (y) => {
             g.moveTo(padding+3*gridSize, padding+y*gridSize); g.lineTo(padding+5*gridSize, padding+(y+2)*gridSize);
             g.moveTo(padding+5*gridSize, padding+y*gridSize); g.lineTo(padding+3*gridSize, padding+(y+2)*gridSize);
@@ -102,121 +91,115 @@
         palace(0); palace(7); g.stroke();
         app.stage.addChild(g);
 
-        // 點擊攔截層 (修復空位點擊 BUG)
-        const bgHit = new PIXI.Graphics().beginFill(0xffffff, 0.001).drawRect(0,0,450,500);
-        bgHit.eventMode = 'static';
-        bgHit.on('pointerdown', (e) => {
-            const x = Math.round((e.global.x - padding) / gridSize);
-            const y = Math.round((e.global.y - padding) / gridSize);
-            if(selected) handleAction(x, y);
+        // 全域透明點擊層 (修復點擊空白處移動)
+        const hit = new PIXI.Graphics().beginFill(0xffffff, 0.001).drawRect(0,0,450,500);
+        hit.eventMode = 'static';
+        hit.on('pointerdown', (e) => {
+            const tx = Math.round((e.global.x - padding)/gridSize);
+            const ty = Math.round((e.global.y - padding)/gridSize);
+            if(selected) movePiece(tx, ty);
         });
-        app.stage.addChild(bgHit);
+        app.stage.addChild(hit);
     };
 
-    // 3. 核心邏輯判斷
-    const canMove = (p, tx, ty) => {
-        if (tx < 0 || tx > 8 || ty < 0 || ty > 9) return false;
+    // 3. 棋子走法檢查 (含所有規則)
+    const checkRule = (p, tx, ty) => {
+        if(tx<0 || tx>8 || ty<0 || ty>9) return false;
         const target = board[ty][tx];
-        if (target !== 0 && Math.sign(target) === Math.sign(p.type)) return false;
+        if(target !== 0 && Math.sign(target) === Math.sign(p.type)) return false;
 
-        const dx = tx - p.x, dy = ty - p.y;
-        const adx = Math.abs(dx), ady = Math.abs(dy);
+        const dx = tx - p.x, dy = ty - p.y, adx = Math.abs(dx), ady = Math.abs(dy);
 
         switch(Math.abs(p.type)) {
-            case 1: // 帥/將 (九宮格 & 王不見王)
-                if (adx + ady === 1) {
-                    if (tx < 3 || tx > 5) return false;
-                    return p.type === 1 ? (ty >= 7) : (ty <= 2);
+            case 1: // 帥/將
+                if(adx + ady === 1) {
+                    if(tx<3 || tx>5) return false;
+                    return p.type === 1 ? (ty>=7) : (ty<=2);
                 }
-                if (dx === 0 && target === (p.type === 1 ? -1 : 1)) { // 對面笑
+                if(dx === 0 && target === (p.type===1?-1:1)) { // 飛將
                     for(let i=1; i<ady; i++) if(board[p.y + (dy/ady)*i][p.x] !== 0) return false;
                     return true;
                 }
                 return false;
             case 2: // 車
-                if (dx !== 0 && dy !== 0) return false;
-                const cDist = Math.max(adx, ady), sx = dx/cDist||0, sy = dy/cDist||0;
-                for(let i=1; i<cDist; i++) if(board[p.y + i*sy][p.x + i*sx] !== 0) return false;
+                if(dx!==0 && dy!==0) return false;
+                const cD = Math.max(adx, ady), csx = dx/cD||0, csy = dy/cD||0;
+                for(let i=1; i<cD; i++) if(board[p.y+i*csy][p.x+i*csx] !== 0) return false;
                 return true;
             case 3: // 馬 (蹩馬腿)
-                if (!((adx===1 && ady===2) || (adx===2 && ady===1))) return false;
-                if (board[p.y + (ady===2?dy/2:0)][p.x + (adx===2?dx/2:0)] !== 0) return false;
+                if(!((adx===1 && ady===2)||(adx===2 && ady===1))) return false;
+                if(board[p.y + (ady===2?dy/2:0)][p.x + (adx===2?dx/2:0)] !== 0) return false;
                 return true;
-            case 4: // 相/象 (塞象眼 & 不過河)
-                if (adx!==2 || ady!==2) return false;
-                if (p.type===4 && ty<5) return false; if (p.type===-4 && ty>4) return false;
-                if (board[p.y+dy/2][p.x+dx/2] !== 0) return false;
+            case 4: // 相 (塞象眼)
+                if(adx!==2 || ady!==2) return false;
+                if(p.type===4 && ty<5) return false; if(p.type===-4 && ty>4) return false;
+                if(board[p.y+dy/2][p.x+dx/2] !== 0) return false;
                 return true;
-            case 5: // 仕/士 (九宮格斜走)
-                if (adx!==1 || ady!==1 || tx<3 || tx>5) return false;
+            case 5: // 仕 (九宮格)
+                if(adx!==1 || ady!==1 || tx<3 || tx>5) return false;
                 return p.type===5 ? (ty>=7) : (ty<=2);
-            case 6: // 兵/卒
-                if (adx+ady !== 1) return false;
-                if (p.type===6) { if(dy>0) return false; if(p.y>=5 && adx!==0) return false; }
+            case 6: // 兵
+                if(adx+ady!==1) return false;
+                if(p.type===6) { if(dy>0) return false; if(p.y>=5 && adx!==0) return false; }
                 else { if(dy<0) return false; if(p.y<=4 && adx!==0) return false; }
                 return true;
-            case 7: // 炮 (翻山吃子)
-                if (dx !== 0 && dy !== 0) return false;
-                const pDist = Math.max(adx, ady), psx = dx/pDist||0, psy = dy/pDist||0;
-                let cnt = 0; for(let i=1; i<pDist; i++) if(board[p.y+i*psy][p.x+i*psx]!==0) cnt++;
-                return target === 0 ? cnt === 0 : cnt === 1;
+            case 7: // 炮
+                if(dx!==0 && dy!==0) return false;
+                const pD = Math.max(adx, ady), psx = dx/pD||0, psy = dy/pD||0;
+                let cnt = 0; for(let i=1; i<pD; i++) if(board[p.y+i*psy][p.x+i*psx]!==0) cnt++;
+                return target===0 ? cnt===0 : cnt===1;
         }
         return false;
     };
 
-    const handleAction = (tx, ty) => {
-        const piece = board[ty][tx];
-        // 選取棋子
-        if (piece !== 0 && Math.sign(piece) === turn) {
-            selected = { x: tx, y: ty, type: piece };
-            uiLayer.clear().lineStyle(3, 0x00bbff).drawRect(padding + tx*gridSize - 23, padding + ty*gridSize - 23, 46, 46);
-            document.getElementById('msg').innerText = "";
-            return;
-        }
-        // 移動或吃子
-        if (selected && canMove(selected, tx, ty)) {
+    const movePiece = (tx, ty) => {
+        if(checkRule(selected, tx, ty)) {
             board[ty][tx] = selected.type;
             board[selected.y][selected.x] = 0;
             turn *= -1; selected = null; uiLayer.clear();
-            renderPieces(); updateUI();
-        } else if (selected) {
-            document.getElementById('msg').innerText = "❌ 無法移動到該位置";
+            render(); updateStatus();
+        } else {
+            document.getElementById('msg').innerText = "⚠️ 走法不合規則";
         }
     };
 
-    const renderPieces = () => {
+    const render = () => {
         piecesLayer.removeChildren();
         board.forEach((row, y) => {
             row.forEach((type, x) => {
-                if (type === 0) return;
-                const container = new PIXI.Container();
-                container.x = padding + x*gridSize; container.y = padding + y*gridSize;
-                
-                const bg = new PIXI.Graphics().beginFill(0xffffff).lineStyle(2, type > 0 ? 0xcc0000 : 0x222222).drawCircle(0, 0, 20);
-                const txt = new PIXI.Text(names[type], { fontSize: 24, fill: type > 0 ? 0xcc0000 : 0x222222, fontWeight: 'bold' });
+                if(type === 0) return;
+                const c = new PIXI.Container();
+                c.x = padding + x*gridSize; c.y = padding + y*gridSize;
+                const bg = new PIXI.Graphics().beginFill(0xffffff).lineStyle(2, type>0?0xcc0000:0x222222).drawCircle(0,0,20);
+                const txt = new PIXI.Text(names[type], { fontSize: 24, fill: type>0?0xcc0000:0x222222, fontWeight:'bold' });
                 txt.anchor.set(0.5);
-                
-                container.addChild(bg, txt);
-                container.eventMode = 'static';
-                container.on('pointerdown', (e) => { e.stopPropagation(); handleAction(x, y); });
-                piecesLayer.addChild(container);
+                c.addChild(bg, txt);
+                c.eventMode = 'static'; c.cursor = 'pointer';
+                c.on('pointerdown', (e) => {
+                    e.stopPropagation();
+                    if(Math.sign(type) === turn) {
+                        selected = { x, y, type };
+                        uiLayer.clear().lineStyle(3, 0x03a9f4).drawRect(c.x-22, c.y-22, 44, 44);
+                        document.getElementById('msg').innerText = "";
+                    } else if(selected) movePiece(x, y);
+                });
+                piecesLayer.addChild(c);
             });
         });
     };
 
-    const updateUI = () => {
-        const el = document.getElementById('status');
-        el.innerText = turn === 1 ? "紅方走子" : "黑方走子";
-        el.className = `status-box ${turn === 1 ? 'red-turn' : 'black-turn'}`;
-        // 簡單勝負判斷
-        const flat = board.flat();
-        if(!flat.includes(1)) alert("黑方獲勝！");
-        if(!flat.includes(-1)) alert("紅方獲勝！");
+    const updateStatus = () => {
+        const s = document.getElementById('status');
+        s.innerText = turn===1 ? "紅方走子" : "黑方走子";
+        s.className = `status-box ${turn===1?'red-turn':'black-turn'}`;
+        const f = board.flat();
+        if(!f.includes(1)) { alert("黑方勝！"); location.reload(); }
+        if(!f.includes(-1)) { alert("紅方勝！"); location.reload(); }
     };
 
-    drawBoard();
+    drawGrid();
     app.stage.addChild(piecesLayer, uiLayer);
-    renderPieces();
+    render();
 })();
 </script>
 </body>
