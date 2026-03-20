@@ -876,7 +876,7 @@ function scheduleAI() {
     if (!m) { endGame('w'); return; }
     const { fr, fc, tr, tc } = m;
     const movPiece = board[fr][fc], movPc = pcol(movPiece);
-    hist.push({ board: clone(board), turn }); undoB.disabled = false;
+    hist.push({ board: clone(board), turn, captured: { red:[...captured.red], black:[...captured.black] } }); undoB.disabled = false;
     const tgt = board[tr][tc]; if (tgt && tgt !== ' ') addCaptured(tgt);
     board[fr][fc] = ' ';
     anim.piece = movPiece; anim.pc = movPc;
@@ -991,8 +991,10 @@ canvas.addEventListener('click', e => {
     } else if (isLegal(selR,selC,r,c)) {
       const fr=selR, fc=selC, toR=r, toC=c;
       const movPiece=board[fr][fc], movPc=pcol(movPiece);
+      // ✅ 存入 captured 快照，再執行吃子
+      hist.push({ board: clone(board), turn, captured: { red:[...captured.red], black:[...captured.black] } });
+      undoB.disabled=false;
       const tgtP=board[toR][toC]; if (tgtP&&tgtP!==' ') addCaptured(tgtP);
-      hist.push({ board: clone(board), turn }); undoB.disabled=false;
       board[fr][fc]=' '; selR=selC=-1; legal=[];
       doTravel(fr,fc,toR,toC,movPiece,movPc,()=>{ board[toR][toC]=movPiece; postMove(fr,fc,toR,toC,movPiece); });
     } else {
@@ -1005,10 +1007,21 @@ canvas.addEventListener('click', e => {
 undoB.addEventListener('click', () => {
   if (!hist.length || aiOn) return;
   cancelAnim(); anim.phase=null; anim.scale=1;
-  if (gMode==='ai' && hist.length>=2) { hist.pop(); hist.pop(); } else hist.pop();
-  if (hist.length) { const s=hist[hist.length-1]; board=clone(s.board); turn=s.turn; }
-  else { board=newBoard(); turn='w'; }
-  captured={red:[],black:[]}; updateGraveDisplay();
+  // AI 模式：一次退兩步（AI那步 + 玩家那步）
+  if (gMode==='ai' && hist.length>=2) { hist.pop(); hist.pop(); }
+  else hist.pop();
+  // ✅ 還原到歷史快照（含 board、turn、captured）
+  if (hist.length) {
+    const s = hist[hist.length-1];
+    board = clone(s.board);
+    turn  = s.turn;
+    captured = { red:[...s.captured.red], black:[...s.captured.black] };
+  } else {
+    board    = newBoard();
+    turn     = 'w';
+    captured = { red:[], black:[] };
+  }
+  updateGraveDisplay();
   selR=selC=-1; legal=[]; over=false;
   winnerEl.style.display='none'; undoB.disabled=hist.length===0;
   updTurn(); drawBoard();
