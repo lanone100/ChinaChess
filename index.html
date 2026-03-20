@@ -60,7 +60,7 @@ overflow:hidden;
 font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
 background:linear-gradient(145deg,var(--bg-s),var(--bg-e));
 display:flex;align-items:center;justify-content:center;
-transition:background 0.3s;
+transition:background 0.3s ease; /* 動態背景過渡 */
 }
 
 /* ════════════════════════════
@@ -216,6 +216,7 @@ border:var(--panel-border);
 box-shadow:inset 0 1px 3px rgba(0,0,0,0.1);
 color:var(--grave-text);
 font-size:clamp(0.8rem,2vw,1.1rem);
+flex-wrap:wrap; /* 允許換行避免溢出 */
 }
 .grave-side{
 display:flex;
@@ -223,11 +224,13 @@ flex-wrap:wrap;
 gap:2px 4px;
 min-height:28px;
 align-items:center;
+flex:1 1 auto; /* 靈活分配空間 */
 }
 .grave-label{
 font-weight:600;
 opacity:0.8;
 margin-right:2px;
+white-space:nowrap;
 }
 .grave-piece{
 font-size:1.2em;
@@ -286,65 +289,81 @@ opacity:0.60;letter-spacing:0.3px;
 
 /* ════════════════════════════
 PC LANDSCAPE ≥ 768px
-Board on left, panel on right
+Board on left, panel on right (優化版面，防止錯亂)
 ════════════════════════════ */
 @media (min-width:768px){
 .game-container{
 flex-direction:row;
-max-width:1080px;
+max-width:1200px;          /* 放寬最大寬度 */
 padding:16px 18px;
 gap:16px;
 align-items:stretch;
 }
 
 .side-panel{
-flex:0 0 240px;
-width:240px;
+flex:0 0 260px;            /* 固定稍寬，確保內容舒適 */
+width:260px;
 min-width:240px;
-max-width:240px;
+max-width:30vw;            /* 不超過視窗30% */
+overflow-y:auto;           /* 若內容過高可滾動 */
 }
 
 .toolbar{
 flex-direction:column;
 align-items:stretch;
 border-radius:20px;
-padding:14px 12px;
-gap:10px;
-overflow:visible;
+padding:16px 14px;          /* 增加內距 */
+gap:12px;
+overflow:visible;           /* 避免裁剪陰影 */
 }
 
 .turn-indicator{
-font-size:0.92rem;
-padding:8px 10px;
+font-size:1rem;
+padding:8px 12px;
 text-align:center;
+white-space:normal;        /* 允許換行 */
+word-break:keep-all;
 }
 
 .action-buttons{
 flex-direction:column;
-gap:7px;
+gap:8px;
 align-items:stretch;
 }
 
 .icon-btn,.undo-btn{
-width:100%;height:40px;
+width:100%;height:44px;
 border-radius:12px;
-font-size:0.88rem;
+font-size:0.92rem;
 justify-content:center;
 gap:6px;
+background:var(--btn-bg);
 }
 .icon-btn::after{content:attr(data-label);}
 .restart-btn{
 width:100%;
 justify-content:center;
-padding:9px 12px;
-font-size:0.88rem;
+padding:10px 12px;
+font-size:0.92rem;
 border-radius:12px;
 }
 .mode-badge{
 text-align:center;
-padding:7px 12px;
-font-size:0.80rem;
+padding:8px 12px;
+font-size:0.85rem;
 border-radius:12px;
+width:100%;
+box-sizing:border-box;
+}
+
+/* 俘虜區在側欄內適當排列 */
+.grave-yard{
+padding:12px 10px;
+font-size:1rem;
+justify-content:center;
+}
+.grave-side{
+justify-content:center;
 }
 
 .board-card{
@@ -353,20 +372,26 @@ border-radius:32px;
 padding:12px;
 }
 
-.grave-yard{
-padding:12px 10px;
-font-size:1rem;
-}
-.grave-side{
-gap:4px 6px;
-}
-
 .winner-card{
 border-radius:16px;
 padding:12px 16px;
 }
 
-.footer-note{margin-top:auto;}
+.footer-note{
+margin-top:auto;
+padding-top:8px;
+}
+}
+
+/* 針對超窄桌面再微調 */
+@media (min-width:768px) and (max-width:920px){
+.side-panel{
+flex-basis:220px;
+min-width:200px;
+}
+.toolbar{
+padding:12px 10px;
+}
 }
 
 /* ════════════════════════════
@@ -979,7 +1004,7 @@ startBtn.addEventListener('click',()=>{
   initGame();
 });
 
-/* 繪製棋盤與棋子 (灰色標記僅用於俘虜區) */
+/* 繪製棋盤與棋子 (河流文字已修正) */
 function rr(x,y,w,h,rad){
   ctx.beginPath();
   ctx.moveTo(x+rad,y);ctx.lineTo(x+w-rad,y);ctx.arcTo(x+w,y,x+w,y+rad,rad);
@@ -1015,15 +1040,23 @@ function drawBoard(){
   ln(OX+3*CELL,OY+7*CELL,OX+5*CELL,OY+9*CELL);
   ln(OX+5*CELL,OY+7*CELL,OX+3*CELL,OY+9*CELL);
   ctx.restore();
+
+  /* 河流文字置中 */
   ctx.save();
   const rfs=Math.max(9,Math.round(CELL*0.40));
   ctx.font=`bold ${rfs}px "Noto Serif TC","KaiTi","華文楷體",serif`;
-  ctx.textBaseline='middle';ctx.fillStyle='#5a3610';
-  ctx.shadowColor='rgba(255,225,150,0.4)';ctx.shadowBlur=3;ctx.shadowOffsetX=-1;ctx.shadowOffsetY=-1;
+  ctx.textBaseline='middle';
+  ctx.textAlign='center';
+  ctx.fillStyle='#5a3610';
+  ctx.shadowColor='rgba(255,225,150,0.4)';
+  ctx.shadowBlur=3;
+  ctx.shadowOffsetX=-1;
+  ctx.shadowOffsetY=-1;
   const ry=OY+4.5*CELL;
-  ctx.fillText('楚  河',OX+CELL*0.35,ry);
-  ctx.fillText('漢  界',OX+CELL*4.35,ry);
+  ctx.fillText('楚  河', OX + 2*CELL, ry);
+  ctx.fillText('漢  界', OX + 6*CELL, ry);
   ctx.restore();
+
   legal.forEach(({r,c})=>{
     const x=OX+c*CELL,y=OY+r*CELL;
     ctx.save();
