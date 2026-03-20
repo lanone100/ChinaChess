@@ -621,26 +621,32 @@ const COLS=9, ROWS=10, MGFRAC=0.75;
 let CELL=48, OX=28, OY=28, PR=19;
 
 function resize(){
-  const r=boardCard.getBoundingClientRect();
-  const PAD=16;
-  const avW=r.width -PAD*2;
-  const avH=r.height-PAD*2;
-  CELL=Math.max(24,Math.floor(Math.min(
-    avW/(COLS-1+MGFRAC*2),
-    avH/(ROWS-1+MGFRAC*2)
+  // 取消動畫並清除選中，避免縮放時錯位
+  cancelAnim();
+  cancelAITimer();
+  selR = selC = -1;
+  legal = [];
+
+  const r = boardCard.getBoundingClientRect();
+  const PAD = 16; // 對應 board-card 的 padding (8+8)
+  const avW = r.width - PAD*2;
+  const avH = r.height - PAD*2;
+  CELL = Math.max(24, Math.floor(Math.min(
+    avW / (COLS-1 + MGFRAC*2),
+    avH / (ROWS-1 + MGFRAC*2)
   )));
-  canvas.width =Math.round(CELL*(COLS-1+MGFRAC*2));
-  canvas.height=Math.round(CELL*(ROWS-1+MGFRAC*2));
-  OX=Math.round(CELL*MGFRAC);
-  OY=Math.round(CELL*MGFRAC);
-  PR=Math.max(8,Math.round(CELL*0.40));
+  canvas.width  = Math.round(CELL * (COLS-1 + MGFRAC*2));
+  canvas.height = Math.round(CELL * (ROWS-1 + MGFRAC*2));
+  OX = Math.round(CELL * MGFRAC);
+  OY = Math.round(CELL * MGFRAC);
+  PR = Math.max(8, Math.round(CELL * 0.40));
   drawBoard();
 }
 new ResizeObserver(resize).observe(boardCard);
 
-let board=[],turn='w',selR=-1,selC=-1;
-let over=false,hist=[],legal=[];
-let gMode='pvp',aiCol='b',aiDep=2,aiOn=false;
+let board=[], turn='w', selR=-1, selC=-1;
+let over=false, hist=[], legal=[];
+let gMode='pvp', aiCol='b', aiDep=2, aiOn=false, aiTimer=null;
 let captured={red:[], black:[]};
 
 const CH={R:'車',H:'馬',E:'相',A:'士',K:'帥',C:'砲',P:'兵',
@@ -684,15 +690,29 @@ function newBoard(){
   [0,2,4,6,8].forEach(c=>b[6][c]='P');
   return b;
 }
+
+function cloneCaptured(){
+  return {red:[...captured.red], black:[...captured.black]};
+}
+
 function initGame(){
-  board=newBoard();
-  turn='w';selR=selC=-1;over=false;hist=[];legal=[];aiOn=false;
-  captured={red:[], black:[]};
+  cancelAITimer();
+  board = newBoard();
+  turn = 'w';
+  selR = selC = -1;
+  over = false;
+  hist = [];
+  legal = [];
+  aiOn = false;
+  captured = {red:[], black:[]};
   updateGraveDisplay();
-  undoB.disabled=true;winnerEl.style.display='none';
-  canvas.classList.remove('thinking');thinkBar.classList.remove('active');
-  updTurn();drawBoard();
-  if(gMode==='ai'&&turn===aiCol)scheduleAI();
+  undoB.disabled = true;
+  winnerEl.style.display = 'none';
+  canvas.classList.remove('thinking');
+  thinkBar.classList.remove('active');
+  updTurn();
+  drawBoard();
+  if(gMode === 'ai' && turn === aiCol) scheduleAI();
 }
 
 function updateGraveDisplay(){
@@ -843,27 +863,46 @@ function bestMove(){
   }
   return bm;
 }
+
+function cancelAITimer(){
+  if(aiTimer){
+    clearTimeout(aiTimer);
+    aiTimer = null;
+  }
+}
+
 function scheduleAI(){
-  if(over||aiOn)return;
-  aiOn=true;canvas.classList.add('thinking');thinkBar.classList.add('active');
-  turnDisp.textContent='🤖 電腦思考中…';
-  turnDisp.style.color='';
-  setTimeout(()=>{
-    const m=bestMove();
-    aiOn=false;canvas.classList.remove('thinking');thinkBar.classList.remove('active');
-    if(!m){endGame('w');return;}
-    const fr=m.fr,fc=m.fc,tr=m.tr,tc=m.tc;
-    const movPiece=board[fr][fc],movPc=pcol(movPiece);
-    hist.push({board:clone(board),turn});undoB.disabled=false;
-    const targetPiece=board[tr][tc];
+  if(over || aiOn) return;
+  cancelAITimer();
+  aiOn = true;
+  canvas.classList.add('thinking');
+  thinkBar.classList.add('active');
+  turnDisp.textContent = '🤖 電腦思考中…';
+  turnDisp.style.color = '';
+  aiTimer = setTimeout(() => {
+    aiTimer = null;
+    const m = bestMove();
+    aiOn = false;
+    canvas.classList.remove('thinking');
+    thinkBar.classList.remove('active');
+    if(!m){
+      endGame('w'); // 黑方無步可走，紅勝
+      return;
+    }
+    const fr=m.fr, fc=m.fc, tr=m.tr, tc=m.tc;
+    const movPiece = board[fr][fc], movPc = pcol(movPiece);
+    // 儲存歷史（包含被吃子狀態）
+    hist.push({board: clone(board), turn, captured: cloneCaptured()});
+    undoB.disabled = false;
+    const targetPiece = board[tr][tc];
     if(targetPiece && targetPiece!==' ') addCaptured(targetPiece);
-    board[fr][fc]=' ';
-    anim.piece=movPiece;anim.pc=movPc;
-    doTravel(fr,fc,tr,tc,movPiece,movPc,()=>{
-      board[tr][tc]=movPiece;
-      postMove(fr,fc,tr,tc,movPiece);
+    board[fr][fc] = ' ';
+    anim.piece = movPiece; anim.pc = movPc;
+    doTravel(fr, fc, tr, tc, movPiece, movPc, () => {
+      board[tr][tc] = movPiece;
+      postMove(fr, fc, tr, tc, movPiece);
     });
-  },50);
+  }, 50);
 }
 
 const anim={
@@ -940,10 +979,10 @@ function postMove(fr,fc,tr,tc,movPiece){
   turn=turn==='w'?'b':'w';updTurn();
   if(!anyMove(turn)){endGame(turn==='w'?'b':'w');return;}
   drawBoard();
-  if(gMode==='ai'&&turn===aiCol)scheduleAI();
+  if(gMode==='ai'&&turn===aiCol) scheduleAI();
 }
 function endGame(w){
-  over=true;anim.phase=null;cancelAnim();
+  over=true;anim.phase=null;cancelAnim();cancelAITimer();
   winnerEl.textContent=w==='w'?'🔴 紅方勝利！':'⚫ 黑方勝利！';
   winnerEl.style.display='block';
   drawBoard();
@@ -980,8 +1019,10 @@ canvas.addEventListener('click',e=>{
       const fr=selR,fc=selC,toR=r,toC=c;
       const movPiece=board[fr][fc],movPc=pcol(movPiece);
       const targetPiece=board[toR][toC];
+      // 儲存歷史（包含被吃子狀態）
+      hist.push({board:clone(board), turn, captured: cloneCaptured()});
+      undoB.disabled=false;
       if(targetPiece && targetPiece!==' ') addCaptured(targetPiece);
-      hist.push({board:clone(board),turn});undoB.disabled=false;
       board[fr][fc]=' ';
       selR=selC=-1;legal=[];
       doTravel(fr,fc,toR,toC,movPiece,movPc,()=>{
@@ -995,17 +1036,36 @@ canvas.addEventListener('click',e=>{
   }
 });
 undoB.addEventListener('click',()=>{
-  if(!hist.length||aiOn)return;
-  cancelAnim();anim.phase=null;anim.scale=1;
-  if(gMode==='ai'&&hist.length>=2){hist.pop();hist.pop();}
-  else hist.pop();
-  if(hist.length){const s=hist[hist.length-1];board=clone(s.board);turn=s.turn;}
-  else{board=newBoard();turn='w';}
-  captured={red:[], black:[]};
+  if(!hist.length||aiOn) return;
+  cancelAnim(); anim.phase=null; anim.scale=1;
+  cancelAITimer();  // 避免殘留AI走子
+  if(gMode==='ai' && hist.length>=2){
+    // AI模式：撤銷玩家+AI兩步
+    hist.pop(); // 移除AI步
+    hist.pop(); // 移除玩家步
+  } else {
+    hist.pop(); // 雙人模式或只剩一步
+  }
+  if(hist.length){
+    const s = hist[hist.length-1];
+    board = clone(s.board);
+    turn = s.turn;
+    captured = {red:[...s.captured.red], black:[...s.captured.black]};
+  } else {
+    board = newBoard();
+    turn = 'w';
+    captured = {red:[], black:[]};
+  }
   updateGraveDisplay();
-  selR=selC=-1;legal=[];over=false;
-  winnerEl.style.display='none';undoB.disabled=hist.length===0;
-  updTurn();drawBoard();
+  selR = selC = -1;
+  legal = [];
+  over = false;
+  winnerEl.style.display = 'none';
+  undoB.disabled = hist.length === 0;
+  updTurn();
+  drawBoard();
+  // 如果恢復後輪到AI，且AI模式，觸發AI
+  if(gMode==='ai' && turn===aiCol) scheduleAI();
 });
 restartB.addEventListener('click',showOverlay);
 themeB.addEventListener('click',()=>{
@@ -1017,7 +1077,9 @@ themeB.addEventListener('click',()=>{
 modeBadge.addEventListener('click',showOverlay);
 let selMode=null,selDiff=2;
 function showOverlay(){
-  aiOn=false;cancelAnim();anim.phase=null;anim.scale=1;
+  cancelAITimer();      // 清除未執行的AI
+  aiOn=false;
+  cancelAnim(); anim.phase=null; anim.scale=1;
   selMode=null;
   diffSec.classList.remove('visible');startBtn.classList.remove('visible');
   document.querySelectorAll('.diff-btn').forEach(b=>b.classList.toggle('active',+b.dataset.d===selDiff));
