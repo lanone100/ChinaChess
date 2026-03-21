@@ -440,9 +440,9 @@ function scheduleAI(){
     canvas.classList.remove('thinking');thinkBar.classList.remove('active');
     if(!m){endGame(aiCol==='w'?'b':'w');return;}
     hist.push(snap());undoB.disabled=false;
-    const tgt=board[m.tr][m.tc];if(tgt&&tgt!==' ')addCaptured(tgt);
+    const tgt=board[m.tr][m.tc];const wasCapture=!!(tgt&&tgt!==' ');if(wasCapture)addCaptured(tgt);
     const mp=board[m.fr][m.fc],mpc=pcol(mp);board[m.fr][m.fc]=' ';
-    doTravel(m.fr,m.fc,m.tr,m.tc,mp,mpc,()=>{board[m.tr][m.tc]=mp;postMove();});
+    doTravel(m.fr,m.fc,m.tr,m.tc,mp,mpc,()=>{board[m.tr][m.tc]=mp;postMove(m.tr,m.tc,wasCapture,mpc);});
   },50);
 }
 
@@ -455,12 +455,31 @@ function eOB(t){const c=1.70158;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2)
 function eIO(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
 function eBounce(t){if(t<1/2.75)return 7.5625*t*t;if(t<2/2.75){t-=1.5/2.75;return 7.5625*t*t+.75;}if(t<2.5/2.75){t-=2.25/2.75;return 7.5625*t*t+.9375;}t-=2.625/2.75;return 7.5625*t*t+.984375;}
 function tick(ts){const p=Math.min(1,(ts-anim.startTs)/anim.dur);if(anim.phase==='pop'){anim.scale=1+.4*eOB(p);drawBoard();if(p<1)rafId=requestAnimationFrame(tick);else{anim.scale=1.4;anim.phase='idle';rafId=null;drawBoard();}}else if(anim.phase==='travel'){const q=eIO(p);anim.cx=anim.x0+(anim.x1-anim.x0)*q;anim.cy=anim.y0+(anim.y1-anim.y0)*q;drawBoard();if(p<1)rafId=requestAnimationFrame(tick);else{anim.cx=anim.x1;anim.cy=anim.y1;anim.phase='land';anim.scale=1.4;anim.startTs=performance.now();anim.dur=120;rafId=requestAnimationFrame(tick);}}else if(anim.phase==='land'){anim.scale=1.4-.4*eBounce(p);drawBoard();if(p<1)rafId=requestAnimationFrame(tick);else{anim.scale=1;anim.phase=null;rafId=null;drawBoard();const cb=anim.onDone;anim.onDone=null;if(cb)cb();}}}
-function doPop(r,c,piece,pc){cancelAnim();anim.phase='pop';anim.piece=piece;anim.pc=pc;anim.scale=1;anim.cx=OX+bCol(c)*CELL;anim.cy=OY+bRow(r)*CELL;anim.startTs=performance.now();anim.dur=150;rafId=requestAnimationFrame(tick);}
+function doPop(r,c,piece,pc){cancelAnim();anim.phase='pop';anim.piece=piece;anim.pc=pc;anim.scale=1;anim.cx=OX+bCol(c)*CELL;anim.cy=OY+bRow(r)*CELL;anim.startTs=performance.now();anim.dur=150;rafId=requestAnimationFrame(tick);SFX.playSelect();}
 function doTravel(fr,fc,tr,tc,piece,pc,onDone){cancelAnim();anim.phase='travel';anim.piece=piece;anim.pc=pc;anim.scale=1.4;anim.x0=OX+bCol(fc)*CELL;anim.y0=OY+bRow(fr)*CELL;anim.x1=OX+bCol(tc)*CELL;anim.y1=OY+bRow(tr)*CELL;anim.cx=anim.x0;anim.cy=anim.y0;anim.onDone=onDone;anim.startTs=performance.now();anim.dur=220;rafId=requestAnimationFrame(tick);}
 
 /* ── GAME FLOW ── */
-function postMove(){const wK=board.some(row=>row.includes('K')),bK=board.some(row=>row.includes('k'));if(!wK){endGame('b');return;}if(!bK){endGame('w');return;}selR=selC=-1;legal=[];turn=turn==='w'?'b':'w';updTurn();if(!anyMove(turn)){endGame(turn==='w'?'b':'w');return;}drawBoard();if(gMode==='ai'&&turn===aiCol)scheduleAI();}
-function endGame(w){over=true;cancelAnim();winnerEl.textContent=w==='w'?'🔴 紅方勝利！':'⚫ 黑方勝利！';winnerEl.style.display='block';resignBtn.disabled=true;drawBoard();if(typeof launchConfetti==='function')launchConfetti(w);}
+function postMove(toR, toC, wasCapture, movPc){
+  const wK=board.some(row=>row.includes('K')),bK=board.some(row=>row.includes('k'));
+  if(!wK){endGame('b');return;}if(!bK){endGame('w');return;}
+  selR=selC=-1;legal=[];
+  // 落子音效 + 粒子
+  SFX.playDrop(wasCapture);
+  if(wasCapture) FX.capture(toR, toC, movPc==='w');
+  else           FX.drop(toR, toC);
+  turn=turn==='w'?'b':'w';updTurn();
+  if(!anyMove(turn)){endGame(turn==='w'?'b':'w');return;}
+  // 將軍偵測：若新的走棋方被將
+  if(kingExp(board, turn)){
+    // 找到被將的將/帥位置
+    const kp = turn==='w'?'K':'k';
+    let kr=-1,kc=-1;
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(board[r][c]===kp){kr=r;kc=c;}
+    if(kr>=0){SFX.playCheck();FX.check(kr,kc);}
+  }
+  drawBoard();if(gMode==='ai'&&turn===aiCol)scheduleAI();
+}
+function endGame(w){over=true;cancelAnim();winnerEl.textContent=w==='w'?'🔴 紅方勝利！':'⚫ 黑方勝利！';winnerEl.style.display='block';resignBtn.disabled=true;drawBoard();SFX.playWin(w==='w');if(typeof launchConfetti==='function')launchConfetti(w);}
 function updTurn(){if(gMode==='ai'&&turn===aiCol){turnDisp.textContent='🤖 電腦思考中…';turnDisp.style.color='';return;}const isR=(turn==='w');turnDisp.textContent=isR?'🔴 紅方走棋':'⚫ 黑方走棋';turnDisp.style.color=isR?'var(--red-turn)':'var(--black-turn)';}
 
 /* ── FLIP ── */
@@ -475,7 +494,7 @@ canvas.addEventListener('click',e=>{
   const tgt=board[r][c],tc=pcol(tgt);
   if(selR===-1){if(tc===turn){selR=r;selC=c;legal=getLegal(r,c);doPop(r,c,board[r][c],tc);}}
   else{if(tc===turn){cancelAnim();selR=r;selC=c;legal=getLegal(r,c);doPop(r,c,board[r][c],tc);}
-  else if(isLegal(selR,selC,r,c)){const fr=selR,fc=selC,toR=r,toC=c,mp=board[fr][fc],mpc=pcol(mp);hist.push(snap());undoB.disabled=false;const tgtP=board[toR][toC];if(tgtP&&tgtP!==' ')addCaptured(tgtP);board[fr][fc]=' ';selR=selC=-1;legal=[];doTravel(fr,fc,toR,toC,mp,mpc,()=>{board[toR][toC]=mp;postMove();});}
+  else if(isLegal(selR,selC,r,c)){const fr=selR,fc=selC,toR=r,toC=c,mp=board[fr][fc],mpc=pcol(mp);hist.push(snap());undoB.disabled=false;const tgtP=board[toR][toC];const wasCapture=!!(tgtP&&tgtP!==' ');if(wasCapture)addCaptured(tgtP);board[fr][fc]=' ';selR=selC=-1;legal=[];doTravel(fr,fc,toR,toC,mp,mpc,()=>{board[toR][toC]=mp;postMove(toR,toC,wasCapture,mpc);});}
   else{cancelAnim();selR=selC=-1;legal=[];drawBoard();}}
 });
 
@@ -560,6 +579,193 @@ function drawPiece(x,y,piece,pc,scale){
   ctx.save();ctx.beginPath();ctx.arc(x,y,R,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=rim;ctx.lineWidth=Math.max(1.4,R*.095);ctx.stroke();ctx.beginPath();ctx.arc(x,y,R*.71,0,Math.PI*2);ctx.strokeStyle=inner;ctx.lineWidth=Math.max(.8,R*.048);ctx.stroke();
   const fs=Math.max(7,Math.round(R*1.1));ctx.font=`bold ${fs}px "KaiTi","Noto Serif TC",serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=tc;ctx.fillText(CH[piece],x,y+Math.round(R*.04));ctx.restore();
 }
+
+/* ══════════════════════════════════
+   SOUND ENGINE  — Web Audio API 合成
+   所有音效純程式生成，不需外部音檔
+══════════════════════════════════ */
+const SFX = (() => {
+  let ctx = null;
+  function ac() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function playBuf(buf) {
+    const s = ac().createBufferSource();
+    s.buffer = buf; s.connect(ac().destination); s.start();
+  }
+  // 木頭敲擊（落子）
+  function mkWood(freq, dur, vol) {
+    const c = ac(), buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / c.sampleRate;
+      const env = Math.exp(-t * 40);
+      d[i] = Math.sin(2 * Math.PI * freq * t) * env * vol
+           + (Math.random() * 2 - 1) * 0.15 * Math.exp(-t * 80);
+    }
+    return buf;
+  }
+  // 金屬打擊（吃子）
+  function mkHit(dur, vol) {
+    const c = ac(), buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / c.sampleRate;
+      const env = Math.exp(-t * 18);
+      d[i] = (Math.sin(2 * Math.PI * 320 * t) * 0.6
+            + Math.sin(2 * Math.PI * 510 * t) * 0.3
+            + (Math.random() * 2 - 1) * 0.25) * env * vol;
+    }
+    return buf;
+  }
+  // 鑼鼓聲（將軍警示）
+  function mkAlert(vol) {
+    const c = ac(), dur = 0.6, buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / c.sampleRate;
+      const env = Math.exp(-t * 8);
+      d[i] = (Math.sin(2 * Math.PI * 180 * t) * 0.5
+            + Math.sin(2 * Math.PI * 360 * t) * 0.3
+            + Math.sin(2 * Math.PI * 90 * t) * 0.4
+            + (Math.random() * 2 - 1) * 0.1) * env * vol;
+    }
+    return buf;
+  }
+  // 勝利旋律（三連音）
+  function playWin(isRed) {
+    const c = ac();
+    const notes = isRed ? [523, 659, 784] : [392, 494, 587];
+    notes.forEach((freq, i) => {
+      setTimeout(() => {
+        const osc = c.createOscillator(), gain = c.createGain();
+        osc.type = 'sine'; osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.4, c.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.5);
+        osc.connect(gain); gain.connect(c.destination);
+        osc.start(); osc.stop(c.currentTime + 0.5);
+      }, i * 160);
+    });
+  }
+  // 選棋音（輕輕一點）
+  function playSelect() { playBuf(mkWood(700, 0.08, 0.35)); }
+  // 落子音
+  function playDrop(isCapture) {
+    if (isCapture) playBuf(mkHit(0.25, 0.7));
+    else           playBuf(mkWood(320, 0.2, 0.7));
+  }
+  // 將軍警示
+  function playCheck()  { playBuf(mkAlert(0.55)); }
+  return { playSelect, playDrop, playCheck, playWin };
+})();
+
+/* ══════════════════════════════════
+   PARTICLE BURST  — 落子 / 吃子粒子特效
+   在 canvas 上方疊加一個 overlay canvas
+══════════════════════════════════ */
+const FX = (() => {
+  // 建立一個與棋盤重疊的全螢幕 overlay canvas
+  const ov = document.createElement('canvas');
+  ov.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:200;';
+  document.body.appendChild(ov);
+  const ox = ov.getContext('2d');
+  function resizeOv() { ov.width = window.innerWidth; ov.height = window.innerHeight; }
+  window.addEventListener('resize', resizeOv); resizeOv();
+
+  let particles = [], rafFx = null;
+
+  function getBoardXY(logR, logC) {
+    // 把邏輯座標轉換成螢幕座標
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width  / canvas.width;
+    const scaleY = rect.height / canvas.height;
+    const cx = rect.left + (OX + bCol(logC) * CELL) * scaleX;
+    const cy = rect.top  + (OY + bRow(logR) * CELL) * scaleY;
+    return { cx, cy };
+  }
+
+  function burst(logR, logC, color, count) {
+    const { cx, cy } = getBoardXY(logR, logC);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 5;
+      particles.push({
+        x: cx, y: cy,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2,
+        r: 2 + Math.random() * 4,
+        color,
+        alpha: 1,
+        life: 30 + Math.floor(Math.random() * 30),
+        age: 0,
+      });
+    }
+    if (!rafFx) rafFx = requestAnimationFrame(tickFx);
+  }
+
+  function tickFx() {
+    ox.clearRect(0, 0, ov.width, ov.height);
+    particles = particles.filter(p => p.age < p.life);
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.18; p.vx *= 0.92;
+      p.age++;
+      p.alpha = 1 - p.age / p.life;
+      ox.save();
+      ox.globalAlpha = p.alpha;
+      ox.beginPath();
+      ox.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ox.fillStyle = p.color;
+      ox.fill();
+      ox.restore();
+    }
+    if (particles.length) rafFx = requestAnimationFrame(tickFx);
+    else { ox.clearRect(0, 0, ov.width, ov.height); rafFx = null; }
+  }
+
+  // 落子：金色粒子
+  function drop(logR, logC)    { burst(logR, logC, '#f5c842', 14); }
+  // 吃子：紅/黑爆裂
+  function capture(logR, logC, isRedPiece) {
+    burst(logR, logC, isRedPiece ? '#e55' : '#555', 28);
+    burst(logR, logC, '#fff', 10);
+  }
+  // 將軍：橘色脈衝環
+  function check(logR, logC) {
+    // 畫三圈脈衝環
+    let ring = 0;
+    function drawRing() {
+      if (ring >= 3) return;
+      const { cx, cy } = getBoardXY(logR, logC);
+      let frame = 0;
+      function rf() {
+        frame++;
+        const prog = frame / 20;
+        ox.save();
+        ox.globalAlpha = (1 - prog) * 0.7;
+        ox.beginPath();
+        ox.arc(cx, cy, 20 + prog * 40, 0, Math.PI * 2);
+        ox.strokeStyle = '#ff8800';
+        ox.lineWidth = 3;
+        ox.stroke();
+        ox.restore();
+        if (frame < 20) requestAnimationFrame(rf);
+      }
+      requestAnimationFrame(rf);
+      ring++;
+      if (ring < 3) setTimeout(drawRing, 150);
+    }
+    drawRing();
+  }
+
+  document.addEventListener('chess:newgame', () => {
+    particles = []; if (rafFx) { cancelAnimationFrame(rafFx); rafFx = null; }
+    ox.clearRect(0, 0, ov.width, ov.height);
+  });
+
+  return { drop, capture, check };
+})();
 
 /* ── CONFETTI ── */
 (function(){
