@@ -98,16 +98,23 @@ body.dark {
   margin: 0; padding: 0; box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
-html, body {
-  height: 100%; height: 100dvh;
+html {
+  height: 100dvh;
   overflow: hidden;
+  /* 固定高度，避免手機網址列收起/展開引發 resize */
 }
 body {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   /* 草綠三色漸層 */
   background: linear-gradient(135deg, var(--bg-s) 0%, var(--bg-m) 50%, var(--bg-e) 100%);
   display: flex; align-items: center; justify-content: center;
   transition: background 0.4s;
+  /* 防止手機觸碰選字 */
+  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
 }
 
 /* ══════════════════════════════════
@@ -545,6 +552,33 @@ canvas.thinking { cursor: wait; opacity: 0.78; }
   transition: transform 0.08s;
 }
 .resign-confirm-btn:active { transform: translateY(2px); }
+
+/* ── Color picker (AI mode) ── */
+.color-section {
+  width: 100%; display: none;
+  flex-direction: column; gap: 10px; align-items: center;
+}
+.color-section.visible { display: flex; }
+.color-label { font-size: 0.80rem; font-weight: 600; color: var(--text-sec); }
+.color-btns  { display: flex; gap: 10px; width: 100%; }
+.color-btn {
+  flex: 1; padding: 10px 8px;
+  border-radius: 14px; border: 2.5px solid transparent;
+  font-weight: 700; font-size: 0.88rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: transform 0.08s, border-color 0.15s, box-shadow 0.15s;
+  box-shadow: var(--btn-shadow);
+}
+.color-btn:active { transform: translateY(2px); }
+.color-btn.red-btn  { background: rgba(220,60,60,0.12);  color: #9d2a2a; }
+.color-btn.black-btn{ background: rgba(40,40,40,0.10);   color: var(--text-pri); }
+body.dark .color-btn.red-btn  { background: rgba(240,100,100,0.15); color: #f28b82; }
+body.dark .color-btn.black-btn{ background: rgba(200,200,200,0.10); color: var(--text-pri); }
+.color-btn.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,111,143,0.20), var(--btn-shadow);
+}
+.color-btn .piece-icon { font-size: 1.3rem; line-height: 1; }
 </style>
 </head>
 <body>
@@ -565,7 +599,7 @@ canvas.thinking { cursor: wait; opacity: 0.78; }
         <span class="mode-choice-icon">🤖</span>
         <span class="mode-choice-text">
           <b>人機對戰</b>
-          <small>挑戰電腦 AI · 您執紅方先行</small>
+          <small>挑戰電腦 AI · 選擇您的棋色</small>
         </span>
       </button>
     </div>
@@ -575,6 +609,17 @@ canvas.thinking { cursor: wait; opacity: 0.78; }
         <button class="diff-btn" data-d="1">入門</button>
         <button class="diff-btn active" data-d="2">普通</button>
         <button class="diff-btn" data-d="3">困難</button>
+      </div>
+    </div>
+    <div class="color-section" id="colorSection">
+      <div class="color-label">選擇您的棋色</div>
+      <div class="color-btns">
+        <button class="color-btn red-btn active" data-c="w">
+          <span class="piece-icon">🔴</span> 紅方先行
+        </button>
+        <button class="color-btn black-btn" data-c="b">
+          <span class="piece-icon">⚫</span> 黑方後手
+        </button>
       </div>
     </div>
     <button class="start-btn" id="startBtn">開始對局 →</button>
@@ -678,23 +723,53 @@ const resignConfirm= document.getElementById('resignConfirm');
 const COLS = 9, ROWS = 10, MGFRAC = 0.78;
 let CELL = 48, OX = 28, OY = 28, PR = 19;
 
-function resize() {
-  const r   = boardCard.getBoundingClientRect();
+/* 用 ResizeObserver 的 contentBoxSize 而非 getBoundingClientRect，
+   避免讀取 canvas 自身大小引發的 reflow 無限迴圈。
+   另加防抖 + 相同尺寸短路，徹底杜絕手機抖動。 */
+let _lastW = 0, _lastH = 0, _resizeTimer = null;
+
+function resize(avW, avH) {
   const PAD = 14;
-  const avW = r.width  - PAD * 2;
-  const avH = r.height - PAD * 2;
-  CELL = Math.max(22, Math.floor(Math.min(
+  avW = (avW || boardCard.getBoundingClientRect().width)  - PAD * 2;
+  avH = (avH || boardCard.getBoundingClientRect().height) - PAD * 2;
+  if (avW < 1 || avH < 1) return;
+
+  const newCell = Math.max(22, Math.floor(Math.min(
     avW / (COLS - 1 + MGFRAC * 2),
     avH / (ROWS - 1 + MGFRAC * 2)
   )));
-  canvas.width  = Math.round(CELL * (COLS - 1 + MGFRAC * 2));
-  canvas.height = Math.round(CELL * (ROWS - 1 + MGFRAC * 2));
+  const newW = Math.round(newCell * (COLS - 1 + MGFRAC * 2));
+  const newH = Math.round(newCell * (ROWS - 1 + MGFRAC * 2));
+
+  // 相同尺寸直接跳過，防止 canvas 改寬高又觸發 observer
+  if (newW === _lastW && newH === _lastH) { drawBoard(); return; }
+  _lastW = newW; _lastH = newH;
+
+  CELL = newCell;
+  canvas.width  = newW;
+  canvas.height = newH;
   OX = Math.round(CELL * MGFRAC);
   OY = Math.round(CELL * MGFRAC);
   PR = Math.max(7, Math.round(CELL * 0.40));
   drawBoard();
 }
-new ResizeObserver(resize).observe(boardCard);
+
+/* ResizeObserver 讀 contentBoxSize，不引發額外 reflow */
+new ResizeObserver(entries => {
+  for (const entry of entries) {
+    let w, h;
+    if (entry.contentBoxSize && entry.contentBoxSize[0]) {
+      w = entry.contentBoxSize[0].inlineSize;
+      h = entry.contentBoxSize[0].blockSize;
+    } else {
+      w = entry.contentRect.width;
+      h = entry.contentRect.height;
+    }
+    // 防抖：16ms 內只執行一次（一幀）
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => resize(w, h), 16);
+  }
+}).observe(boardCard);
 
 /* ── Game state ── */
 let board = [], turn = 'w', selR = -1, selC = -1;
@@ -754,6 +829,7 @@ function initGame() {
   resignOv.classList.remove('show');
   resignBtn.disabled = false;
   board = newBoard();
+  // 紅方 (w) 永遠先走；若玩家選黑，AI執紅所以AI先動
   turn = 'w'; selR = selC = -1; over = false; hist = []; legal = []; aiOn = false;
   captured = { red: [], black: [] };
   updateGraveDisplay();
@@ -1238,16 +1314,32 @@ themeB.addEventListener('click', () => {
 modeBadge.addEventListener('click', showOverlay);
 
 /* ── Overlay ── */
-let selMode = null, selDiff = 2;
+let selMode = null, selDiff = 2, selColor = 'w';   // selColor: 'w'=玩家執紅, 'b'=玩家執黑
+
+const colorSec = document.getElementById('colorSection');
+
 function showOverlay() {
   aiOn=false; cancelAnim(); anim.phase=null; anim.scale=1;
   selMode=null;
-  diffSec.classList.remove('visible'); startBtn.classList.remove('visible');
+  diffSec.classList.remove('visible');
+  colorSec.classList.remove('visible');
+  startBtn.classList.remove('visible');
   document.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('active', +b.dataset.d===selDiff));
+  document.querySelectorAll('.color-btn').forEach(b => b.classList.toggle('active', b.dataset.c===selColor));
   modeOv.classList.remove('hidden');
 }
-choosePvp.addEventListener('click', () => { selMode='pvp'; diffSec.classList.remove('visible'); startBtn.classList.add('visible'); });
-chooseAi.addEventListener('click',  () => { selMode='ai';  diffSec.classList.add('visible');    startBtn.classList.add('visible'); });
+choosePvp.addEventListener('click', () => {
+  selMode='pvp';
+  diffSec.classList.remove('visible');
+  colorSec.classList.remove('visible');
+  startBtn.classList.add('visible');
+});
+chooseAi.addEventListener('click', () => {
+  selMode='ai';
+  diffSec.classList.add('visible');
+  colorSec.classList.add('visible');
+  startBtn.classList.add('visible');
+});
 document.querySelectorAll('.diff-btn').forEach(b => {
   b.addEventListener('click', () => {
     selDiff = +b.dataset.d;
@@ -1255,16 +1347,27 @@ document.querySelectorAll('.diff-btn').forEach(b => {
     b.classList.add('active');
   });
 });
+document.querySelectorAll('.color-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    selColor = b.dataset.c;
+    document.querySelectorAll('.color-btn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+  });
+});
 startBtn.addEventListener('click', () => {
   if (!selMode) return;
   gMode=selMode; aiDep=selDiff;
   if (gMode==='pvp') {
+    aiCol = 'b';                   // irrelevant in pvp
     modeBadge.textContent='👥 雙人'; modeBadge.className='mode-badge pvp';
     footerNote.textContent='✦ 雙人對弈 ✦';
   } else {
+    // selColor = player color → aiCol = opposite
+    aiCol = (selColor === 'w') ? 'b' : 'w';
     const dn = ['','入門','普通','困難'][aiDep]||'普通';
+    const side = selColor === 'w' ? '紅' : '黑';
     modeBadge.textContent=`🤖 AI·${dn}`; modeBadge.className='mode-badge ai';
-    footerNote.textContent=`✦ 人機對戰 · ${dn} ✦`;
+    footerNote.textContent=`✦ 人機對戰 · ${dn} · 您執${side}方 ✦`;
   }
   modeOv.classList.add('hidden');
   initGame();
