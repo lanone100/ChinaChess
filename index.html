@@ -565,7 +565,9 @@ canvas.thinking { cursor: wait; opacity: 0.78; }
   flex: 1; padding: 10px 8px;
   border-radius: 14px; border: 2.5px solid transparent;
   font-weight: 700; font-size: 0.88rem; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  flex-direction: column;
+  text-align: center; line-height: 1.3;
   transition: transform 0.08s, border-color 0.15s, box-shadow 0.15s;
   box-shadow: var(--btn-shadow);
 }
@@ -612,13 +614,13 @@ body.dark .color-btn.black-btn{ background: rgba(200,200,200,0.10); color: var(-
       </div>
     </div>
     <div class="color-section" id="colorSection">
-      <div class="color-label">選擇您的棋色</div>
+      <div class="color-label">選擇您的棋色（棋盤以您的視角顯示）</div>
       <div class="color-btns">
         <button class="color-btn red-btn active" data-c="w">
-          <span class="piece-icon">🔴</span> 紅方先行
+          <span class="piece-icon">🔴</span><span><b>紅方</b><br><small style="font-size:0.72rem;opacity:0.8;font-weight:500">您在下方 · 先行</small></span>
         </button>
         <button class="color-btn black-btn" data-c="b">
-          <span class="piece-icon">⚫</span> 黑方後手
+          <span class="piece-icon">⚫</span><span><b>黑方</b><br><small style="font-size:0.72rem;opacity:0.8;font-weight:500">您在下方 · 後手</small></span>
         </button>
       </div>
     </div>
@@ -829,6 +831,8 @@ function initGame() {
   resignOv.classList.remove('show');
   resignBtn.disabled = false;
   board = newBoard();
+  // 玩家執黑時翻轉棋盤（黑方在下方）
+  flipped = (gMode === 'ai' && aiCol === 'w');
   // 紅方 (w) 永遠先走；若玩家選黑，AI執紅所以AI先動
   turn = 'w'; selR = selC = -1; over = false; hist = []; legal = []; aiOn = false;
   captured = { red: [], black: [] };
@@ -1081,15 +1085,15 @@ function tick(ts) {
 function doPop(r, c, piece, pc) {
   cancelAnim();
   anim.phase='pop'; anim.piece=piece; anim.pc=pc; anim.scale=1;
-  anim.cx=OX+c*CELL; anim.cy=OY+r*CELL;
+  anim.cx=OX+bCol(c)*CELL; anim.cy=OY+bRow(r)*CELL;
   anim.startTs=performance.now(); anim.dur=150;
   rafId = requestAnimationFrame(tick);
 }
 function doTravel(fr, fc, tr, tc, piece, pc, onDone) {
   cancelAnim();
   anim.phase='travel'; anim.piece=piece; anim.pc=pc; anim.scale=1.4;
-  anim.x0=OX+fc*CELL; anim.y0=OY+fr*CELL;
-  anim.x1=OX+tc*CELL; anim.y1=OY+tr*CELL;
+  anim.x0=OX+bCol(fc)*CELL; anim.y0=OY+bRow(fr)*CELL;
+  anim.x1=OX+bCol(tc)*CELL; anim.y1=OY+bRow(tr)*CELL;
   anim.cx=anim.x0; anim.cy=anim.y0;
   anim.onDone=onDone;
   anim.startTs=performance.now(); anim.dur=220;
@@ -1224,11 +1228,21 @@ function updTurn() {
 }
 
 /* ── Input ── */
+/* flipped=true 時棋盤翻轉（玩家執黑，黑方在下） */
+let flipped = false;
+
+/* 棋盤邏輯列/行  ↔  畫布像素座標 互轉 */
+function bRow(r) { return flipped ? (ROWS - 1 - r) : r; }
+function bCol(c) { return flipped ? (COLS - 1 - c) : c; }
+
 function getPos(e) {
-  const r = canvas.getBoundingClientRect();
-  const sx = canvas.width / r.width, sy = canvas.height / r.height;
-  return { r: Math.round(((e.clientY - r.top) * sy - OY) / CELL),
-           c: Math.round(((e.clientX - r.left) * sx - OX) / CELL) };
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width  / rect.width;
+  const sy = canvas.height / rect.height;
+  const dc = Math.round(((e.clientX - rect.left) * sx - OX) / CELL);
+  const dr = Math.round(((e.clientY - rect.top)  * sy - OY) / CELL);
+  // 翻轉時反向映射回邏輯座標
+  return { r: bRow(dr), c: bCol(dc) };
 }
 canvas.addEventListener('click', e => {
   if (over || aiOn || animBusy()) return;
@@ -1358,12 +1372,13 @@ startBtn.addEventListener('click', () => {
   if (!selMode) return;
   gMode=selMode; aiDep=selDiff;
   if (gMode==='pvp') {
-    aiCol = 'b';                   // irrelevant in pvp
+    aiCol = 'b';
+    flipped = false;               // 雙人模式不翻轉
     modeBadge.textContent='👥 雙人'; modeBadge.className='mode-badge pvp';
     footerNote.textContent='✦ 雙人對弈 ✦';
   } else {
-    // selColor = player color → aiCol = opposite
     aiCol = (selColor === 'w') ? 'b' : 'w';
+    flipped = (selColor === 'b'); // 玩家執黑 → 翻轉棋盤
     const dn = ['','入門','普通','困難'][aiDep]||'普通';
     const side = selColor === 'w' ? '紅' : '黑';
     modeBadge.textContent=`🤖 AI·${dn}`; modeBadge.className='mode-badge ai';
@@ -1441,13 +1456,14 @@ function drawBoard(){
   ctx.shadowColor=isDark?'rgba(0,0,0,0.5)':'rgba(255,225,150,0.4)';
   ctx.shadowBlur=4; ctx.shadowOffsetX=-1; ctx.shadowOffsetY=-1;
   const ry=OY+4.5*CELL;
-  ctx.fillText('楚  河', OX+2*CELL, ry);
-  ctx.fillText('漢  界', OX+6*CELL, ry);
+  // 翻轉時「漢界」在下方（玩家側），「楚河」在上方
+  ctx.fillText(flipped ? '漢  界' : '楚  河', OX+2*CELL, ry);
+  ctx.fillText(flipped ? '楚  河' : '漢  界', OX+6*CELL, ry);
   ctx.restore();
 
   /* Legal move hints */
   legal.forEach(({r,c})=>{
-    const x=OX+c*CELL, y=OY+r*CELL;
+    const x=OX+bCol(c)*CELL, y=OY+bRow(r)*CELL;
     ctx.save();
     if(board[r][c]!==' '){
       const d=PR+3, L=Math.round(PR*0.48);
@@ -1469,7 +1485,7 @@ function drawBoard(){
 
   /* Selected piece ring */
   if(selR!==-1&&!over&&!animBusy()){
-    const x=OX+selC*CELL, y=OY+selR*CELL;
+    const x=OX+bCol(selC)*CELL, y=OY+bRow(selR)*CELL;
     ctx.save();
     ctx.shadowColor=isDark?'#ffd966':'#ffd700'; ctx.shadowBlur=CELL*0.3;
     ctx.strokeStyle=isDark?'#ffd966':'#ffd700';
@@ -1482,10 +1498,10 @@ function drawBoard(){
   for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
     const p=board[r][c]; if(!p||p===' ') continue;
     const isAnimSrc=(anim.phase==='pop'||anim.phase==='idle')&&r===selR&&c===selC&&anim.piece===p;
-    drawPiece(OX+c*CELL, OY+r*CELL, p, pcol(p), isAnimSrc?anim.scale:1);
+    drawPiece(OX+bCol(c)*CELL, OY+bRow(r)*CELL, p, pcol(p), isAnimSrc?anim.scale:1);
   }
 
-  /* Travelling piece */
+  /* Travelling piece — anim.cx/cy already set in display coords via doTravel */
   if((anim.phase==='travel'||anim.phase==='land')&&anim.piece)
     drawPiece(anim.cx, anim.cy, anim.piece, anim.pc, anim.scale);
 }
